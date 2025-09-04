@@ -616,6 +616,10 @@ public class MessagesController extends ViewController<MessagesController.Argume
       searchControlsLayout.setTranslationY((Screen.dp(49f) + extraBottomInset) * (1f - searchControlsFactor));
     }
     updateSearchControlsInset();
+    if (keyboardWrapper != null && keyboardLayout != null) {
+      Views.applyBottomInset(keyboardWrapper, extraBottomInsetWithoutIme);
+      Views.setLayoutHeight(keyboardWrapper, keyboardLayout.getSize() + extraBottomInsetWithoutIme);
+    }
   }
 
   private void updateSearchControlsInset () {
@@ -7538,7 +7542,8 @@ public class MessagesController extends ViewController<MessagesController.Argume
       keyboardLayout.setCallback(this);
 
       keyboardWrapper.addView(keyboardLayout);
-      keyboardWrapper.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, keyboardLayout.getSize()));
+      keyboardWrapper.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, keyboardLayout.getSize() + extraBottomInsetWithoutIme));
+      Views.applyBottomInset(keyboardWrapper, extraBottomInsetWithoutIme);
 
       bottomWrap.addView(keyboardWrapper);
       contentView.getViewTreeObserver().addOnPreDrawListener(keyboardLayout);
@@ -9511,10 +9516,12 @@ public class MessagesController extends ViewController<MessagesController.Argume
           .setSettingProcessor((item, view, isUpdate) -> {
             switch (item.getViewType()) {
               case ListItem.TYPE_CHECKBOX_OPTION:
-              case ListItem.TYPE_CHECKBOX_OPTION_WITH_AVATAR:
-                view.setEmojiStatus(tdlib.cache().user(item.getLongValue()));
+              case ListItem.TYPE_CHECKBOX_OPTION_WITH_AVATAR: {
+                long userId = item.getLongValue();
+                view.setEmojiStatus(userId != 0 ? tdlib.cache().user(userId) : null);
                 ((CheckBoxView) view.getChildAt(0)).setChecked(item.isSelected(), isUpdate);
                 break;
+              }
             }
           })
           .setOnSettingItemClick((view, settingsId, item, doneButton, settingsAdapter, window) -> {
