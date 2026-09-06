@@ -41,10 +41,13 @@ import org.thunderdog.challegram.config.Config;
 import org.thunderdog.challegram.config.Device;
 import org.thunderdog.challegram.core.Lang;
 import org.thunderdog.challegram.helper.LocationHelper;
+import org.thunderdog.challegram.navigation.AccountCounter;
+import org.thunderdog.challegram.navigation.QuickActionTile;
 import org.thunderdog.challegram.navigation.SettingsWrapBuilder;
 import org.thunderdog.challegram.navigation.ViewController;
 import org.thunderdog.challegram.support.ViewSupport;
 import org.thunderdog.challegram.telegram.Tdlib;
+import org.thunderdog.challegram.theme.ColorId;
 import org.thunderdog.challegram.theme.Theme;
 import org.thunderdog.challegram.theme.ThemeCustom;
 import org.thunderdog.challegram.theme.ThemeDelegate;
@@ -57,6 +60,7 @@ import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.unsorted.Settings;
 import org.thunderdog.challegram.util.AppUpdater;
 import org.thunderdog.challegram.util.DrawableModifier;
+import org.thunderdog.challegram.util.EndIconModifier;
 import org.thunderdog.challegram.util.Permissions;
 import org.thunderdog.challegram.util.StringList;
 import org.thunderdog.challegram.v.CustomRecyclerView;
@@ -127,11 +131,25 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
 
   private final Comparator<ThemeInfo> themeComparator = (a, b) -> a.isInstalled() != b.isInstalled() ? (a.isInstalled() ? -1 : 1) : Integer.compare(a.getId(), b.getId());
 
+  private final Runnable quickActionListener = () -> {
+    if (adapter != null) {
+      adapter.updateValuedSettingById(R.id.btn_quickActionTile);
+    }
+  };
+
+  private final Runnable accountCounterListener = () -> {
+    if (adapter != null) {
+      adapter.updateValuedSettingById(R.id.btn_accountCounter);
+    }
+  };
+
   @Override
   public void destroy () {
     super.destroy();
     cancelLocationRequest();
     context().appUpdater().removeListener(this);
+    QuickActionTile.removeQuickActionChangedListener(quickActionListener);
+    AccountCounter.removeListener(accountCounterListener);
   }
 
   private void cancelLocationRequest () {
@@ -364,10 +382,23 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
               break;
             }
           }
+        } else if (itemId == R.id.btn_quickActionTile) {
+          v.setData(QuickActionTile.getTitleRes());
+          int iconRes = QuickActionTile.getIconRes();
+          if (iconRes != 0) {
+            v.setDrawModifier(new EndIconModifier(iconRes, ColorId.icon));
+          } else {
+            v.setDrawModifier(null);
+          }
+        } else if (itemId == R.id.btn_accountCounter) {
+          v.setData(AccountCounter.isEnabled() ? R.string.AccountCounterEnabled : R.string.AccountCounterDisabled);
+          v.setDrawModifier(new EndIconModifier(R.drawable.baseline_direction_arrow_down_24, ColorId.icon));
         }
       }
     };
 
+    QuickActionTile.addQuickActionChangedListener(quickActionListener);
+    AccountCounter.addListener(accountCounterListener);
     ArrayList<ListItem> items = new ArrayList<>();
 
     int chatStyle = tdlib.settings().chatStyle();
@@ -632,6 +663,14 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
           items.add(newCameraFlipInfoItem());
         }
       }
+
+      items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.Drawer));
+      items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+      items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+      items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_quickActionTile, 0, R.string.QuickActionTile));
+      items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+      items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_accountCounter, 0, R.string.AccountCounter));
+      items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
 
       items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.Other));
       items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
@@ -1272,6 +1311,10 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
       }
     } else if (viewId == R.id.btn_themeCreate) {
       createNewTheme(currentTheme);
+    } else if (viewId == R.id.btn_quickActionTile) {
+      navigateTo(new SettingsQuickActionController(context, tdlib));
+    } else if (viewId == R.id.btn_accountCounter) {
+      navigateTo(new SettingsAccountCounterController(context, tdlib));
     } else {
       ListItem item = (ListItem) v.getTag();
       final int checkId = item.getCheckId();

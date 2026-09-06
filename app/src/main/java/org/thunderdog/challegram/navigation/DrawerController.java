@@ -66,12 +66,15 @@ import org.thunderdog.challegram.tool.Screen;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.tool.Views;
 import org.thunderdog.challegram.ui.CallListController;
+import org.thunderdog.challegram.ui.camera.CameraController;
 import org.thunderdog.challegram.ui.ChatsController;
 import org.thunderdog.challegram.ui.FeatureToggles;
 import org.thunderdog.challegram.ui.ListItem;
 import org.thunderdog.challegram.ui.PeopleController;
 import org.thunderdog.challegram.ui.SettingsAdapter;
 import org.thunderdog.challegram.ui.SettingsController;
+import org.thunderdog.challegram.ui.SettingsSessionsController;
+import org.thunderdog.challegram.ui.SettingsThemeController;
 import org.thunderdog.challegram.unsorted.Settings;
 import org.thunderdog.challegram.unsorted.Test;
 import org.thunderdog.challegram.util.StringList;
@@ -980,6 +983,33 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
     openController(new SettingsController(context, context.currentTdlib()));
   }
 
+  public void openQrScanner () {
+    openInAppCamera(
+      new CameraOpenOptions()
+        .noTrace(true)
+        .allowSystem(false)
+        .optionalMicrophone(true)
+        .mode(CameraController.MODE_QR)
+    );
+  }
+
+  public void performQuickActionTheme () {
+    ThemeManager.instance().toggleNightMode();
+    QuickActionTile.notifyChanged();
+  }
+
+  public void performQuickActionSettings () {
+    openSettings();
+  }
+
+  public void performQuickActionSavedMessages () {
+    openSavedMessages();
+  }
+
+  public void performQuickActionLinkDevices () {
+    openController(new SettingsSessionsController(context, context.currentTdlib()));
+  }
+
   private void openContacts () {
     context.currentTdlib().contacts().startSyncIfNeeded(context, true, () -> {
       PeopleController c = new PeopleController(context, context.currentTdlib());
@@ -1086,6 +1116,9 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
         setFactor(1f);
         setIsAnimating(false);
         setIsVisible(true);
+        if (headerView != null) {
+          headerView.onDrawerOpened();
+        }
       }
     });
 
@@ -1160,6 +1193,10 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
     setIsVisible(true);
     setIsAnimating(false);
     setFactor(1f);
+
+    if (headerView != null) {
+      headerView.onDrawerOpened();
+    }
   }
 
   private void forceClose () {

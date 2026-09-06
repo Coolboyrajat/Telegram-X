@@ -75,11 +75,19 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
   private final ExpanderView expanderView;
   private final ClickHelper clickHelper;
   private TdlibAccount currentAccount;
+  private final DrawerAccountCounter accountCounter;
+  private final DrawerQuickAction quickAction;
+
+  public DrawerController getDrawerController () {
+    return parent;
+  }
 
   public DrawerHeaderView (Context context, DrawerController parent) {
     super(context);
 
     this.parent = parent;
+    accountCounter = new DrawerAccountCounter(this);
+    quickAction = new DrawerQuickAction(this);
 
     clickHelper = new ClickHelper(this);
     clickHelper.setNoSound(true);
@@ -169,7 +177,13 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
 
   @Override
   public boolean needClickAt (View view, float x, float y) {
-    return y >= getMeasuredHeight() - Screen.dp(54f);
+    return y >= getMeasuredHeight() - Screen.dp(54f)
+      || quickAction.isClick(x, y, getMeasuredWidth(), Lang.rtl());
+  }
+
+  public void onDrawerOpened () {
+    accountCounter.onDrawerOpened();
+    quickAction.onDrawerOpened();
   }
 
   @Override
@@ -187,7 +201,7 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
   @Override
   public boolean onTouchEvent (MotionEvent event) {
     EmojiStatusHelper emojiStatus = findActiveEmojiStatusHelper();
-    return (emojiStatus != null && emojiStatus.onTouchEvent(this, event)) || clickHelper.onTouchEvent(this, event);
+    return (emojiStatus != null && emojiStatus.onTouchEvent(this, event)) || quickAction.onTouchEvent(event, getMeasuredWidth(), Lang.rtl()) || clickHelper.onTouchEvent(this, event);
   }
 
   // Other
@@ -242,6 +256,11 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
   public void onAccountSwitched (TdlibAccount newAccount, TdApi.User profile, int reason, TdlibAccount oldAccount) {
     setUser(newAccount);
     updateCounter();
+  }
+
+  @Override
+  public void onActiveAccountMoved (TdlibAccount account, int fromPosition, int toPosition) {
+    invalidate();
   }
 
   private static int contentLeft () {
@@ -436,6 +455,10 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
       int leftPadding = view.getPaddingLeft();
       if (drawMode == DRAW_MODE_TEXTS || drawMode == DRAW_MODE_REGULAR) {
         this.lastAvatarFactor = avatarFactor;
+        /* Quick Action Tile */
+        context.quickAction.draw(c, viewWidth, rtl);
+        /* Account Counter */
+        context.accountCounter.draw(c,contentLeft + leftPadding,Screen.dp(86f) + HeaderView.getTopOffset());
         if (trimmedName != null) {
           trimmedName.draw(c, contentLeft + leftPadding, contentLeft + leftPadding + trimmedName.getWidth(), 0,  Screen.dp(97f) + HeaderView.getTopOffset(), null, (equalFlags & FLAG_EQUAL_NAMES) != 0 ? (drawEqual ? 1f : 0f) : factor);
         }

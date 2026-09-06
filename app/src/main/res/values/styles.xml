@@ -19,4 +19,28 @@
     <item name="android:windowAnimationStyle">@null</item>
     <item name="android:windowActionBar">false</item>
   </style>
+
+  <string name="Drawer">Drawer</string>
+  <string name="AccountCounter">Account Counter</string>
+  <string name="QuickActionTile">Quick Action Tile</string>
+
+  <string name="QuickActionTileEnabled">Enabled</string>
+  <string name="QuickActionTileInfo">Choose an action as the quick access tile at the top of the navigation drawer.</string>
+  <string name="Background">Background</string>
+  <string name="BackgroundInfo">Add a background to your selected shortcut.</string>
+  <string name="None">None</string>
+  <string name="Translucent">Translucent</string>
+
+  <string name="AccountCounterEnabled">Enabled</string>
+  <string name="AccountCounterDisabled">Disabled</string>
+  <string name="AccountCounterInfo">Show current account index inside the drawer header.</string>
+
+  <string name="SessionsCountEnabled">Enabled</string>
+  <string name="SessionsCountDisabled">Disabled</string>
+  <string name="SessionCount">Session Count</string>
+  <string name="SessionCountInfo">This will add a counter next to Quick Action Tile icon that let you know the number of devices you are currently connected with.</string>
+
+  <string name="Separator">Separator</string>
+  <string name="SeparatorInfo">Customize the separator</string>
+
 </resources>

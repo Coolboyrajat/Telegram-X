@@ -367,6 +367,14 @@ public class Settings {
   private static final String KEY_WALLPAPER_PATH = "_path";
   private static final String KEY_WALLPAPER_ID = "_id";
 
+  private static final String KEY_QUICK_ACTION_TILE = "quick_action_tile";
+  private static final String KEY_QUICK_ACTION_SESSION_COUNT = "quick_action_session_count";
+  private static final String KEY_QUICK_ACTION_SEPARATOR = "quick_action_separator";
+  private static final String KEY_QUICK_ACTION_BACKGROUND = "quick_action_background";
+
+  private static final String KEY_ACCOUNT_COUNTER_ENABLED = "account_counter_enabled";
+  private static final String KEY_ACCOUNT_COUNTER_BACKGROUND = "account_counter_background";
+
   private static String key (String key, int accountId) {
     return accountId != 0 ? accountId + "_" + key : key;
   }
@@ -7301,5 +7309,101 @@ public class Settings {
       _playbackSpeed = PlaybackSpeedLayout.normalizeSpeed(pmc.getInt(KEY_PLAYBACK_SPEED, 100));
     }
     return _playbackSpeed;
+  }
+
+  public static final int QUICK_ACTION_NONE = 0;
+  public static final int QUICK_ACTION_THEME = 1;
+  public static final int QUICK_ACTION_SETTINGS = 2;
+  public static final int QUICK_ACTION_SAVED_MESSAGES = 3;
+  public static final int QUICK_ACTION_LINK_DEVICES = 4;
+
+  @Nullable
+  private Integer _quickActionTile;
+
+  public int getQuickActionTile () {
+    if (_quickActionTile == null) {
+      _quickActionTile = pmc.getInt(KEY_QUICK_ACTION_TILE, QUICK_ACTION_NONE);
+    }
+    return _quickActionTile;
+  }
+
+  public void setQuickActionTile (int action) {
+    _quickActionTile = action;
+    putInt(KEY_QUICK_ACTION_TILE, action);
+  }
+
+  @Nullable
+  private Boolean _quickActionSessionCount;
+
+  public boolean isQuickActionSessionCountEnabled () {
+    if (_quickActionSessionCount == null) {
+      _quickActionSessionCount = pmc.getBoolean(KEY_QUICK_ACTION_SESSION_COUNT, true);
+    }
+
+    return _quickActionSessionCount;
+  }
+
+  public void setQuickActionSessionCountEnabled (boolean enabled) {
+    _quickActionSessionCount = enabled;
+    putBoolean(KEY_QUICK_ACTION_SESSION_COUNT, enabled);
+  }
+
+  @Nullable
+  private String _quickActionSeparator;
+
+  public String getQuickActionSeparator () {
+    if (_quickActionSeparator == null) {
+      _quickActionSeparator = pmc.getString(KEY_QUICK_ACTION_SEPARATOR, ":");
+    }
+
+    return _quickActionSeparator;
+  }
+
+  public void setQuickActionSeparator (@NonNull String separator) {
+    _quickActionSeparator = separator;
+    putString(KEY_QUICK_ACTION_SEPARATOR, separator);
+  }
+
+  @Nullable
+  private Integer _quickActionBackground;
+
+  public int getQuickActionTileBackground () {
+    if (_quickActionBackground == null) {
+      _quickActionBackground = pmc.getInt(KEY_QUICK_ACTION_BACKGROUND, 0);
+    }
+    return _quickActionBackground;
+  }
+
+  public void setQuickActionTileBackground (int background) {
+    _quickActionBackground = background;
+    putInt(KEY_QUICK_ACTION_BACKGROUND, background);
+  }
+
+  @Nullable
+  private Integer _accountCounterBackground;
+  private Boolean _accountCounterEnabled;
+
+  public boolean isAccountCounterEnabled () {
+    if (_accountCounterEnabled == null) {
+      _accountCounterEnabled = pmc.getBoolean(KEY_ACCOUNT_COUNTER_ENABLED, true);
+    }
+    return _accountCounterEnabled;
+  }
+
+  public int getAccountCounterBackground () {
+    if (_accountCounterBackground == null) {
+      _accountCounterBackground = pmc.getInt(KEY_ACCOUNT_COUNTER_BACKGROUND, 1);
+    }
+    return _accountCounterBackground;
+  }
+
+  public void setAccountCounterBackground (int background) {
+    _accountCounterBackground = background;
+    putInt(KEY_ACCOUNT_COUNTER_BACKGROUND, background);
+  }
+
+  public void setAccountCounterEnabled (boolean enabled) {
+    _accountCounterEnabled = enabled;
+    putBoolean(KEY_ACCOUNT_COUNTER_ENABLED, enabled);
   }
 }

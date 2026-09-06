@@ -1434,4 +1434,34 @@
   <item type="id" name="btn_playback_speed_1_2" />
   <item type="id" name="btn_playback_speed_1_5" />
   <item type="id" name="btn_playback_speed_2_0" />
+
+  <!-- Components -->
+  <item type="id" name="btn_accountCounter" />
+  <item type="id" name="btn_quickActionTile" />
+
+  <!-- Shared background controls -->
+  <item type="id" name="btn_backgroundNone" />
+  <item type="id" name="btn_backgroundTranslucent" />
+  <item type="id" name="btn_backgroundBlur" />
+
+  <!-- Account Counter -->
+  <item type="id" name="btn_accountCounterEnabled" />
+  <item type="id" name="btn_accountCounterBackground" />
+
+  <!-- Quick Action Tile -->
+  <item type="id" name="btn_quickActionBackground" />
+  <item type="id" name="btn_quickActionNone" />
+
+  <!-- Quick Action: Session Count -->
+  <item type="id" name="btn_quickActionSessionCount" />
+  <item type="id" name="btn_sessionCountEnabled" />
+  <item type="id" name="btn_sessionCountDisabled" />
+
+  <!-- Quick Action: Separator -->
+  <item type="id" name="btn_quickActionSeparator" />
+
+  <!-- Controllers -->
+  <item type="id" name="controller_quickActionSettings" />
+  <item type="id" name="controller_accountCounterSettings" />
+
 </resources>
