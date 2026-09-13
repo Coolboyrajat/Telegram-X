@@ -4,6 +4,7 @@ import androidx.baselineprofile.gradle.consumer.BaselineProfileConsumerExtension
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.BuildConfigField
 import com.android.build.api.variant.impl.VariantOutputImpl
+import com.android.build.gradle.tasks.ExternalNativeBuildTask
 import org.gradle.kotlin.dsl.support.uppercaseFirstChar
 import tgx.gradle.*
 import tgx.gradle.source.GitVersionSource
@@ -165,7 +166,9 @@ val patchOpusTask = tasks.register<PatchOpusTask>(
   ))
 }
 
-val buildLibvpxTasks = Sdk.VARIANTS.values.flatMap { sdkVariant ->
+val buildLibvpxTasks = Sdk.VARIANTS.values.filter {
+  (it.usesLegacyNdk == useLegacyNdk || config.build.primaryNdkVersion == config.build.legacyNdkVersion)
+}.flatMap { sdkVariant ->
   val abiVariants = if (sdkVariant.minSdk >= 21) {
     arrayOf("arm64", "arm32", "x86", "x64")
   } else {
@@ -214,7 +217,9 @@ val buildLibvpxTask = tasks.register("buildLibvpx") {
   dependsOn(buildLibvpxTasks.values)
 }
 
-val buildFfmpegTasks = Sdk.VARIANTS.values.flatMap { sdkVariant ->
+val buildFfmpegTasks = Sdk.VARIANTS.values.filter {
+  (it.usesLegacyNdk == useLegacyNdk || config.build.primaryNdkVersion == config.build.legacyNdkVersion)
+}.flatMap { sdkVariant ->
   val abiVariants = if (sdkVariant.minSdk >= 21) {
     arrayOf("arm64", "arm32", "x86", "x64")
   } else {
@@ -265,6 +270,9 @@ val buildFfmpegTask = tasks.register("buildFfmpeg") {
   description = "Builds FFmpeg for all flavors"
   dependsOn(buildFfmpegTasks.values)
 }
+
+val buildNativeTasks = mutableMapOf<String, TaskProvider<*>>()
+
 
 //noinspection WrongGradleMethod
 android {
@@ -687,6 +695,7 @@ android {
         dependsOn(*nativeBuildTasks.toTypedArray())
       }
       variant.lifecycleTasks.registerPreBuild(buildNativeTask)
+      buildNativeTasks["${sdkVariant.flavor}${abiVariant.flavor.uppercaseFirstChar()}"] = buildNativeTask
 
       variant.sources.res?.apply {
         addGeneratedSourceDirectory(
@@ -861,6 +870,17 @@ if (generateBaselineProfile) {
 
   afterEvaluate {
     dependencies.add("latestLabReleaseBaselineProfile", project(":baseline-profile"))
+  }
+}
+
+afterEvaluate {
+  tasks.withType<ExternalNativeBuildTask>().configureEach {
+    val variantName = variantName.replace(Regex("(Benchmark)?(NonMinified)?(Release|Debug)$", RegexOption.IGNORE_CASE), "")
+    val buildNativeTask = buildNativeTasks[variantName]
+    require(buildNativeTask != null) {
+      "Could not find buildNativeTask for $variantName (${this.variantName})"
+    }
+    dependsOn(buildNativeTask)
   }
 }
 
