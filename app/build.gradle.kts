@@ -322,7 +322,6 @@ android {
     resValue("string", "content_authority", "${config.applicationId}.sync.provider")
 
     buildConfigString("PROJECT_NAME", config.applicationName)
-    buildConfigBool("SHARED_STL", ndkVersion.ndkVersionMajor() >= 27)
     buildConfigString("SAFETYNET_API_KEY", config.safetyNetToken)
 
     buildConfigString("DOWNLOAD_URL", config.appDownloadUrl)
@@ -500,6 +499,8 @@ android {
           buildConfigBool("${subVariant.flavor.uppercase()}_FLAVOR", sdkIndex == subSdkIndex)
         }
 
+        buildConfigBool("CALLS_AVAILABLE", !variant.isLegacy)
+
         val selectedMinSdk = maxOf(
           variant.minSdk,
           Config.MIN_SDK_VERSION_HUAWEI.takeIf { config.isHuaweiBuild } ?: 0,
@@ -526,7 +527,10 @@ android {
           "-finline-functions"
         )
         externalNativeBuild.cmake {
-          targets += arrayOf("tgxjni", "tgcallsjni")
+          targets += "tgxjni"
+          if (!variant.isLegacy) {
+            targets += "tgcallsjni"
+          }
           arguments(
             "-DANDROID_PLATFORM=android-${selectedMinSdk}",
             "-DANDROID_STL=${if (appliedNdkVersion.ndkVersionMajor() >= 27) "c++_shared" else "c++_static"}",
@@ -628,7 +632,8 @@ android {
 
         ndkVersion = appliedNdkVersion
         buildConfigString("NDK_VERSION", ndkVersion)
-        buildConfigBool("WEBP_ENABLED", true) // variant.minSdk < 19
+        buildConfigBool("SHARED_STL", ndkVersion.ndkVersionMajor() >= 27)
+        buildConfigBool("WEBP_ENABLED", true)
         if (ndk.abiFilters.isNotEmpty())
           error(ndk.abiFilters.joinToString())
         ndk.abiFilters.addAll(variant.filters)
@@ -895,7 +900,7 @@ dependencies {
   implementation(project(":extension:${config.extension}"))
   // TDLib: https://github.com/tdlib/td/blob/master/CHANGELOG.md
   implementation(project(":tdlib"))
-  implementation(project(":tgcalls"))
+  sinceLollipopImplementation(project(":tgcalls"))
   implementation(project(":vkryl:core"))
   implementation(project(":vkryl:leveldb"))
   implementation(project(":vkryl:android"))
