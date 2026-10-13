@@ -71,9 +71,6 @@ val generateThemes = tasks.register<GenerateThemesTask>("generateThemes") {
   resOutputDir.set(layout.buildDirectory.dir(
     "generated/tgx/themes/res"
   ))
-  javaOutputDir.set(layout.buildDirectory.dir(
-    "generated/tgx/themes/java"
-  ))
   kotlinOutputDir.set(layout.buildDirectory.dir(
     "generated/tgx/themes/kotlin"
   ))
@@ -86,13 +83,13 @@ val generateLangFunctions = tasks.register<GenerateLangFunctions>("generateLangF
     "src/main/res/values/strings.xml"
   ))
   colorIdJava.set(generateThemes.flatMap {
-    it.javaOutputDir.file(
-      "org/thunderdog/challegram/theme/ColorId.java"
+    it.kotlinOutputDir.file(
+      "org/thunderdog/challegram/theme/ColorId.kt"
     )
   })
   propertyIdJava.set(generateThemes.flatMap {
-    it.javaOutputDir.file(
-      "org/thunderdog/challegram/theme/PropertyId.java"
+    it.kotlinOutputDir.file(
+      "org/thunderdog/challegram/theme/PropertyId.kt"
     )
   })
   // Output
@@ -124,8 +121,8 @@ val generateExceptions = tasks.register<GenerateExceptionsTask>("updateException
   applicationVersion.set(
     config.applicationVersion
   )
-  javaOutputDir.set(layout.buildDirectory.dir(
-    "generated/tgx/exceptions/java"
+  kotlinOutputDir.set(layout.buildDirectory.dir(
+    "generated/tgx/exceptions/kotlin"
   ))
 }
 val validateApiTokens = tasks.register<ValidateApiTokensTask>("validateApiTokens") {
@@ -680,6 +677,10 @@ android {
   }
 
   androidComponents {
+    val aapt2File = sdkComponents.sdkDirectory.map {
+      it.file("build-tools/${config.build.buildToolsVersion}/aapt2").asFile.toPosixPath()
+    }
+
     onVariants(selector().withBuildType("release")) { variant ->
       if (!config.isExperimentalBuild) {
         variant.lifecycleTasks.registerPreBuild(validateApiTokens)
@@ -692,6 +693,19 @@ android {
           file.asFile.readLines().filter { it.isNotBlank() }
         }
       )
+
+      if (variant.minSdk.apiLevel >= 33) {
+        val optimizeTaskName = "optimize${variant.name.uppercaseFirstChar()}Resources"
+        project.afterEvaluate {
+          tasks.named(optimizeTaskName) {
+            inputs.property("tgxAapt2", aapt2File)
+            doLast(objects.newInstance<OptimizeWithAapt2Task>().apply {
+              aapt2.set(aapt2File)
+              minSdk.set(variant.minSdk.apiLevel)
+            })
+          }
+        }
+      }
     }
 
     onVariants { variant ->
@@ -751,15 +765,10 @@ android {
           generateLangFunctions, GenerateLangFunctions::resOutputDir
         )
       }
-      variant.sources.java?.apply {
-        addGeneratedSourceDirectory(
-          generateThemes, GenerateThemesTask::javaOutputDir
-        )
-        addGeneratedSourceDirectory(
-          generateExceptions, GenerateExceptionsTask::javaOutputDir
-        )
-      }
       variant.sources.kotlin?.apply {
+        addGeneratedSourceDirectory(
+          generateExceptions, GenerateExceptionsTask::kotlinOutputDir
+        )
         addGeneratedSourceDirectory(
           generateThemes, GenerateThemesTask::kotlinOutputDir
         )
