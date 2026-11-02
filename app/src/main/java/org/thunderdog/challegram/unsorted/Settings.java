@@ -582,7 +582,7 @@ public class Settings {
     }
 
     private boolean checkLogSetting (int flag) {
-      if (BuildConfig.LAB_FLAVOR) {
+      if (BuildConfig.TEST_HOOKS_ENABLED) {
         if (flag == FLAG_TDLIB_OTHER_ENABLE_ANDROID_LOG) {
           return true;
         }
@@ -847,7 +847,7 @@ public class Settings {
   private Settings () {
     File pmcDir = new File(AppContext.get().getFilesDir(), "pmc");
     boolean didNotExist = !pmcDir.exists();
-    if (Config.ENABLE_BASELINE_PROFILE_HOOKS && didNotExist) {
+    if (Config.ENABLE_TEST_HOOKS && didNotExist) {
       if (SessionSnapshot.restoreSnapshot()) {
         didNotExist = false;
       }
@@ -4714,7 +4714,7 @@ public class Settings {
       case TdApi.ProxyTypeMtproto.CONSTRUCTOR:
         return null;
       default: {
-        Td.assertProxyType_bc1a1076();
+        Td.assertProxyType_40673e07();
         throw Td.unsupported(type);
       }
     }
@@ -4729,7 +4729,7 @@ public class Settings {
       case TdApi.ProxyTypeMtproto.CONSTRUCTOR:
         return null;
       default: {
-        Td.assertProxyType_bc1a1076();
+        Td.assertProxyType_40673e07();
         throw Td.unsupported(type);
       }
     }
@@ -4744,7 +4744,7 @@ public class Settings {
       case TdApi.ProxyTypeHttp.CONSTRUCTOR:
         return 3;
       default:
-        Td.assertProxyType_bc1a1076();
+        Td.assertProxyType_40673e07();
         throw Td.unsupported(type);
     }
   }
@@ -4758,7 +4758,7 @@ public class Settings {
       case TdApi.ProxyTypeHttp.CONSTRUCTOR:
         return Proxy.TYPE_HTTP;
       default:
-        Td.assertProxyType_bc1a1076();
+        Td.assertProxyType_40673e07();
         throw Td.unsupported(type);
     }
   }
@@ -5117,7 +5117,7 @@ public class Settings {
           stringRes = R.string.ProxyHttp;
           break;
         default:
-          Td.assertProxyType_bc1a1076();
+          Td.assertProxyType_40673e07();
           throw Td.unsupported(proxy.type);
       }
       return Lang.getString(stringRes, (target, argStart, argEnd, argIndex, needFakeBold) -> new CustomTypefaceSpan(null, ColorId.textLight), name);
