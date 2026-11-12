@@ -2757,6 +2757,30 @@ public class TD {
     return call != null && !call.isOutgoing && call.state.getConstructor() == TdApi.CallStateDiscarded.CONSTRUCTOR && ((TdApi.CallStateDiscarded) call.state).reason.getConstructor() == TdApi.CallDiscardReasonMissed.CONSTRUCTOR;
   }
 
+  public static boolean canRateCall (TdApi.Call call) {
+    // A call ends hung up or disconnected only once answered
+    if (call == null || call.state.getConstructor() != TdApi.CallStateDiscarded.CONSTRUCTOR) {
+      return false;
+    }
+    switch (((TdApi.CallStateDiscarded) call.state).reason.getConstructor()) {
+      case TdApi.CallDiscardReasonHungUp.CONSTRUCTOR:
+      case TdApi.CallDiscardReasonDisconnected.CONSTRUCTOR:
+        return true;
+    }
+    return false;
+  }
+
+  public static boolean isFreshMissedCall (@Nullable TdApi.Chat chat, long currentUnixTime) {
+    TdApi.Message message = chat != null ? chat.lastMessage : null;
+    if (message == null || message.isOutgoing || message.id <= chat.lastReadInboxMessageId ||
+      message.content.getConstructor() != TdApi.MessageCall.CONSTRUCTOR) {
+      return false;
+    }
+    TdApi.CallDiscardReason reason = ((TdApi.MessageCall) message.content).discardReason;
+    return reason.getConstructor() == TdApi.CallDiscardReasonMissed.CONSTRUCTOR &&
+      currentUnixTime - message.date <= TimeUnit.MINUTES.toSeconds(5);
+  }
+
   public static String getCallState2 (TdApi.Call call, TdApi.CallState prevState, long callDuration, boolean needShort) {
     switch (prevState.getConstructor()) {
       case TdApi.CallStatePending.CONSTRUCTOR:
