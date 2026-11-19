@@ -4185,10 +4185,6 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       chatId == ChatId.fromUserId(TdConstants.TELEGRAM_REPLIES_BOT_ACCOUNT_ID);
   }
 
-  public boolean hasMessageThreads (long chatId) {
-    return ChatId.isSupergroup(chatId) && !ChatId.isMonoforumChat(chatId) && !isChannel(chatId);
-  }
-
   public boolean isServiceNotificationsChat (long chatId) {
     return (options.telegramServiceNotificationsChatId != 0 && options.telegramServiceNotificationsChatId == chatId) || (chatId == ChatId.fromUserId(TdConstants.TELEGRAM_ACCOUNT_ID));
   }
@@ -4936,6 +4932,10 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
 
   public TdApi.MessageContent getPendingMessageText (long chatId, long messageId) {
     synchronized (pendingMessageTexts) {
+      // Previews of chats ask for each message, so no key is made while nothing waits
+      if (pendingMessageTexts.isEmpty()) {
+        return null;
+      }
       return pendingMessageTexts.get(chatId + "_" + messageId);
     }
   }
@@ -4947,6 +4947,9 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     }
 
     synchronized (pendingMessageCaptions) {
+      if (pendingMessageCaptions.isEmpty()) {
+        return null;
+      }
       return pendingMessageCaptions.get(chatId + "_" + messageId);
     }
   }
@@ -5508,6 +5511,21 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     });
   }
 
+  public void onSessionCanAcceptCallsChanged (long sessionId, boolean canAcceptCalls) {
+    synchronized (dataLock) {
+      sessionsChangeCount++;
+      if (sessionsInfo != null) {
+        for (TdApi.Session session : sessionsInfo.allSessions) {
+          if (session.id == sessionId) {
+            session.canAcceptCalls = canAcceptCalls;
+            break;
+          }
+        }
+      }
+    }
+    listeners.notifySessionCanAcceptCallsChanged(sessionId, canAcceptCalls);
+  }
+
   public static class SessionsInfo {
     public final TdApi.Session[] allSessions, otherActiveSessions, incompleteLoginAttempts;
     public final TdApi.Session currentSession;
@@ -5575,11 +5593,12 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
   }
 
   private SessionsInfo sessionsInfo;
+  private int sessionsChangeCount;
 
   @Nullable
   public TdApi.Session currentSession () {
     synchronized (dataLock) {
-      return sessionsInfo.currentSession;
+      return sessionsInfo != null ? sessionsInfo.currentSession : null;
     }
   }
 
@@ -5595,15 +5614,37 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         }
       });
     } else {
+      final int changeCount;
+      synchronized (dataLock) {
+        changeCount = sessionsChangeCount;
+      }
       client().send(new TdApi.GetActiveSessions(), result -> {
         switch (result.getConstructor()) {
           case TdApi.Sessions.CONSTRUCTOR: {
-            TdApi.Sessions sessions = (TdApi.Sessions) result;
+            SessionsInfo fetched = new SessionsInfo((TdApi.Sessions) result);
+            TdApi.Session previous = null;
+            boolean isStale;
             synchronized (dataLock) {
-              this.sessionsInfo = new SessionsInfo(sessions);
+              isStale = changeCount != sessionsChangeCount;
+              if (!isStale) {
+                previous = sessionsInfo != null ? sessionsInfo.currentSession : null;
+                sessionsInfo = fetched;
+              }
+            }
+            if (isStale) {
+              // Asked before a session was changed here, which this answer may not have yet
+              getSessions(false, callback);
+              break;
+            }
+            TdApi.Session current = fetched.currentSession;
+            boolean callsChanged = current != null && (previous != null ?
+              previous.canAcceptCalls != current.canAcceptCalls :
+              !current.canAcceptCalls);
+            if (callsChanged) {
+              listeners.notifySessionCanAcceptCallsChanged(current.id, current.canAcceptCalls);
             }
             if (callback != null) {
-              callback.runWithData(this.sessionsInfo);
+              callback.runWithData(fetched);
             }
             break;
           }
@@ -7155,6 +7196,11 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
 
   public boolean isConnected () {
     return connectionState == ConnectionState.CONNECTED;
+  }
+
+  public boolean isConnectedOrUpdating () {
+    return connectionState == ConnectionState.CONNECTED ||
+      connectionState == ConnectionState.UPDATING;
   }
 
   public boolean isConnectingOrUpdating () {
@@ -12130,8 +12176,9 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
   @ResolvableProblem
   public int findResolvableProblem () {
     final boolean haveNotificationsProblem = notifications().hasLocalNotificationProblem();
-    final boolean haveCallsProblem = CallProblems.get(this) != CallProblems.Type.NONE &&
-      !notifications().areNotificationsBlockedGlobally();
+    final boolean haveCallsProblem = (CallProblems.get(this) != CallProblems.Type.NONE &&
+      !notifications().areNotificationsBlockedGlobally()) || (settings().hasCallProblems() &&
+      CallProblems.getOfSettings(this) == CallProblems.Type.DISPLAY_FAILED);
     final TdApi.SuggestedAction singleAction = singleSettingsSuggestion();
     final boolean haveSuggestions = singleAction != null || haveAnySettingsSuggestions();
     final int totalCount = (singleAction != null ? 1 : haveSuggestions ? 2 : 0) +
