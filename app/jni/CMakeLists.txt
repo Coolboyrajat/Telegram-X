@@ -81,6 +81,10 @@ add_compile_options(
   "$<$<COMPILE_LANGUAGE:C,CXX,ASM>:-ffile-prefix-map=${CMAKE_BINARY_DIR}=.cxx>"
 )
 
+if (${ANDROID_ABI} STREQUAL "arm64-v8a" AND TGX_BRANCH_PROTECTION)
+  add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX,ASM>:-mbranch-protection=standard>")
+endif()
+
 if (ANDROID_MIN_SDK_VERSION GREATER_EQUAL 30)
   add_link_options(
     "-Wl,--pack-dyn-relocs=android+relr"
@@ -302,7 +306,9 @@ target_link_libraries(${NATIVE_LIB}
 
 # Limits of sizes of decoders of animations, see gif.cpp
 target_link_options(${NATIVE_LIB} PRIVATE "-Wl,--wrap=vp9_alloc_context_buffers"
-  "-Wl,--wrap=av_image_check_size" "-Wl,--wrap=av_image_check_size2")
+  "-Wl,--wrap=av_image_check_size" "-Wl,--wrap=av_image_check_size2"
+  "-Wl,--wrap=avcodec_open2" "-Wl,--wrap=avcodec_send_packet" "-Wl,--wrap=avcodec_receive_frame"
+  "-Wl,--wrap=avcodec_flush_buffers")
 
 target_link_options(${NATIVE_LIB} PRIVATE
   "$<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:-Wl,--gc-sections,--icf=safe>"

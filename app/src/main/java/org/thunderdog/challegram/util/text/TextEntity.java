@@ -142,6 +142,7 @@ public abstract class TextEntity {
   public abstract int getQuoteId ();
   public boolean isCodeBlock () { return false; }
   public boolean isExpandableQuote () { return false; }
+  public @Nullable TdApi.TextEntityType getCodeBlockType () { return null; }
   public @Nullable String getCodeLanguage () { return null; }
 
   // TODO: TextEntityCustom & TextEntityMessage to make things simpler
@@ -149,7 +150,11 @@ public abstract class TextEntity {
   public abstract ClickableSpan getOnClickListener ();
   public abstract TextEntity makeBold (boolean needFakeBold);
 
-  final TextPaint getTextPaint (TextStyleProvider textStyleProvider, boolean forceBold) {
+  final TextPaint getTextPaint (
+    TextStyleProvider textStyleProvider,
+    boolean forceBold,
+    boolean fakeBold
+  ) {
     // different typefaces
     boolean isBold = forceBold || isBold();
     boolean isItalic = isItalic();
@@ -185,7 +190,7 @@ public abstract class TextEntity {
     } else if (isItalic) {
       textPaint = storage.getItalicPaint();
     } else if (isBold) {
-      textPaint = /*isExtraBold || */needFakeBold ? storage.getFakeBoldPaint() : storage.getBoldPaint();
+      textPaint = (needFakeBold || fakeBold) ? storage.getFakeBoldPaint() : storage.getBoldPaint();
     } else {
       textPaint = storage.getRegularPaint();
     }

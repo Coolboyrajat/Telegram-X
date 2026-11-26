@@ -39,6 +39,8 @@ import android.util.SparseIntArray;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.widget.Toast;
 
 import androidx.annotation.AnyThread;
@@ -59,11 +61,13 @@ import org.thunderdog.challegram.Log;
 import org.thunderdog.challegram.R;
 import org.thunderdog.challegram.U;
 import org.thunderdog.challegram.component.chat.MessageQuickActionSwipeHelper;
+import org.thunderdog.challegram.component.chat.MessageResize;
 import org.thunderdog.challegram.component.chat.MessageResizeRules;
 import org.thunderdog.challegram.component.chat.MessageView;
 import org.thunderdog.challegram.component.chat.MessageViewGroup;
 import org.thunderdog.challegram.component.chat.MessagesManager;
 import org.thunderdog.challegram.component.chat.ReplyComponent;
+import org.thunderdog.challegram.component.chat.StickyElements;
 import org.thunderdog.challegram.component.sticker.TGStickerObj;
 import org.thunderdog.challegram.config.Config;
 import org.thunderdog.challegram.config.Device;
@@ -113,6 +117,7 @@ import org.thunderdog.challegram.util.LanguageDetector;
 import org.thunderdog.challegram.util.NonBubbleEmojiLayout;
 import org.thunderdog.challegram.util.ReactionsCounterDrawable;
 import org.thunderdog.challegram.util.TranslationCounterDrawable;
+import org.thunderdog.challegram.util.text.BlockSwitches;
 import org.thunderdog.challegram.util.text.Counter;
 import org.thunderdog.challegram.util.text.Highlight;
 import org.thunderdog.challegram.util.text.Letters;
@@ -156,6 +161,7 @@ import me.vkryl.core.ColorUtils;
 import me.vkryl.core.DateUtils;
 import me.vkryl.core.MathUtils;
 import me.vkryl.core.StringUtils;
+import me.vkryl.core.collection.IntList;
 import me.vkryl.core.collection.LongList;
 import me.vkryl.core.collection.LongSet;
 import me.vkryl.core.lambda.CancellableRunnable;
@@ -1964,6 +1970,19 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
     if (Config.ENABLE_TEST_HOOKS) {
       manager.messageResize().logFrame(this);
     }
+    if (stickyElements != null) {
+      stickyElements.clear();
+    }
+    isStickyMoving = false;
+    final ViewParent viewParent = view.getParent();
+    if (viewParent instanceof MessagesRecyclerView) {
+      stickyListChild = view;
+    } else if (viewParent instanceof MessageViewGroup &&
+      viewParent.getParent() instanceof MessagesRecyclerView) {
+      stickyListChild = (View) viewParent;
+    } else {
+      stickyListChild = null;
+    }
     final int viewWidth = view.getMeasuredWidth();
     final int viewHeight = view.getMeasuredHeight();
 
@@ -1976,6 +1995,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
     checkEdges();
 
     final float isHiddenFactor = isHiddenByFilter.getFloatValue();
+    stickyAlpha = 1f - isHiddenFactor;
     if (isHiddenFactor == 1f) {
       drawHiddenMessage(view, c, isHiddenFactor);
       return;
@@ -2024,6 +2044,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
       c.save();
       c.translate(contentOffset * (Lang.rtl() ? -1 : 1), 0);
     }
+    stickyOffsetX = translation + contentOffset * (Lang.rtl() ? -1 : 1);
 
     boolean hasBubble = useBubbles && useBubble();
     float lineFactor = 0f;
@@ -4468,8 +4489,17 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
 
   public boolean isAnimatingHeight () {
     // By frames of onAnimatedHeightFrame, each of which requests layout
-    return Config.ENABLE_TEST_HOOKS && testHeightAnimator != null &&
-      testHeightAnimator.isAnimating();
+    if (Config.ENABLE_TEST_HOOKS && testHeightAnimator != null &&
+      testHeightAnimator.isAnimating()) {
+      return true;
+    }
+    for (int i = 0; i < getSwitchingTextCount(); i++) {
+      final Text text = getSwitchingText(i);
+      if (text != null && text.isAnimatingChange()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private int getTestLineAfter (int y) {
@@ -4479,17 +4509,214 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   }
 
   protected boolean keepsTopOnHeightChange () {
-    // MessageResize moves it in place of onMessageHeightChanged
-    return isMeasuringTestHeight || manager.messageResize().isMoving(this);
+    // MessageResize moves the message while a block switches
+    if (isMeasuringTestHeight || manager.messageResize().isMoving(this)) {
+      return true;
+    }
+    for (int i = 0; i < getSwitchingTextCount(); i++) {
+      final Text text = getSwitchingText(i);
+      if (text != null && text.isSwitchingBlock()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  protected int getSwitchingTextCount () {
+    // Texts with expandable quotes or code blocks that switch
+    return 0;
+  }
+
+  protected @Nullable Text getSwitchingText (int index) {
+    return null;
+  }
+
+  protected @Nullable BlockSwitches getBlockSwitches (int index) {
+    return null;
+  }
+
+  protected boolean isSwitchingTextTranslated (int index) {
+    return false;
+  }
+
+  protected long getSwitchingTextMessageId (int index) {
+    return getId();
+  }
+
+  // Block ids are offsets in a text; the bits above them tell the texts apart
+  private static final int TEXT_KEY_SHIFT = 16;
+  private static final int TEXT_KEY_MASK = 0x7fff;
+
+  private int getSwitchingTextKey (int index) {
+    // Local ids differ above their 3 bits of type
+    final long messageId = getSwitchingTextMessageId(index);
+    final long serverMessageId = MessageId.toServerMessageId(messageId);
+    return (int) ((serverMessageId != 0 ? serverMessageId : messageId >> 3) & TEXT_KEY_MASK);
   }
 
   public @Nullable int[] getSwitchedBlocks () {
-    // Blocks that a user switched, see Settings.MessageState
-    return null;
+    // Blocks switched by the user, except in translations
+    final int count = getSwitchingTextCount();
+    IntList blocks = null;
+    for (int i = 0; i < count; i++) {
+      final Text text = isSwitchingTextTranslated(i) ? null : getSwitchingText(i);
+      final int[] textBlocks = text != null ? text.getSwitchedBlocks() : null;
+      if (textBlocks == null) {
+        continue;
+      }
+      if (count == 1) {
+        return textBlocks;
+      }
+      if (blocks == null) {
+        blocks = new IntList(textBlocks.length);
+      }
+      final int key = getSwitchingTextKey(i) << TEXT_KEY_SHIFT;
+      for (int j = 0; j + 1 < textBlocks.length; j += 2) {
+        blocks.append(key | textBlocks[j]);
+        blocks.append(textBlocks[j + 1]);
+      }
+    }
+    return blocks != null ? blocks.get() : null;
   }
 
   public void restoreSwitchedBlocks (int[] blocks) {
     // Before its first layout
+    final int count = getSwitchingTextCount();
+    for (int i = 0; i + 1 < blocks.length; i += 2) {
+      final boolean isOn = BitwiseUtils.hasFlag(blocks[i + 1], Settings.MessageState.BLOCK_ON);
+      for (int j = 0; j < count; j++) {
+        final BlockSwitches blockSwitches = getBlockSwitches(j);
+        if (blockSwitches == null) {
+          continue;
+        }
+        if (count == 1) {
+          blockSwitches.choose(blocks[i], isOn);
+        } else if (getSwitchingTextKey(j) == blocks[i] >>> TEXT_KEY_SHIFT) {
+          blockSwitches.choose(blocks[i] & ((1 << TEXT_KEY_SHIFT) - 1), isOn);
+        }
+      }
+    }
+  }
+
+  // Keeps the lines being read in place while a block switches, by default of a caption below media
+  protected class BlockSwitchListener extends MessageResize.BlockSwitchListener<TGMessage> {
+    @Override
+    protected MessageResize<TGMessage> getResize () {
+      return manager.messageResize();
+    }
+
+    @Override
+    protected TGMessage getMessage () {
+      return TGMessage.this;
+    }
+
+    @Override
+    protected boolean hasContentAbove () {
+      return true;
+    }
+
+    @Override
+    protected int measureFinalHeight (Text text, boolean isReverse) {
+      // The text has its final height already, the message that of the last frame. The time of a
+      // caption stays below it or after its last line, which a switch doesn't change
+      return getHeight() + text.getChangeRemainingHeight();
+    }
+
+    protected void onSwitchFrame (Text text) { }
+
+    @Override
+    public void onBlockSwitchStart (Text text, boolean isReverse) {
+      isStickyMoving = true;
+      super.onBlockSwitchStart(text, isReverse);
+    }
+
+    @Override
+    public void onTextSizeChanged (Text text) {
+      onSwitchFrame(text);
+      onAnimatedHeightFrame(text.getChangeProgress());
+    }
+
+    @Override
+    public int getListHeight (Text text) {
+      return manager.getCodeBlockListHeight();
+    }
+
+    @Override
+    public float placeStickyElement (
+      Text text,
+      StickyElements.Element element,
+      float x,
+      float minY,
+      float maxY,
+      float padding,
+      boolean atTop
+    ) {
+      // The list draws stuck ones, so that a scroll redraws the message only when a state changes
+      final View child = stickyListChild;
+      if (child == null) {
+        return atTop ? minY : maxY;
+      }
+      final ViewGroup list = (ViewGroup) child.getParent();
+      final int top = StickyElements.topOf(child);
+      if (text.isAnimatingChange()) {
+        isStickyMoving = true;
+      }
+      if (stickyElements == null) {
+        stickyElements = new StickyElements();
+      }
+      return stickyElements.stick(
+        element,
+        x + stickyOffsetX,
+        minY,
+        maxY,
+        padding,
+        atTop,
+        manager.getVisibleTop(list) - top,
+        manager.getVisibleBottom(list) - top
+      );
+    }
+  }
+
+  // Added by the last draw, in the list
+  private @Nullable StickyElements stickyElements;
+  private @Nullable View stickyListChild;
+  private float stickyOffsetX, stickyAlpha;
+  // From the start of a change of a text to its last draw
+  private boolean isStickyMoving;
+
+  public final boolean hasStickyElements () {
+    return stickyElements != null && !stickyElements.isEmpty();
+  }
+
+  public final boolean hasStuckStickyElements () {
+    return stickyElements != null && stickyElements.hasStuck();
+  }
+
+  public final void invalidateStickyElements () {
+    // Only while one is stuck or a change may make one stick, not for e.g. animated emoji
+    if (stickyElements != null && (isStickyMoving || stickyElements.hasStuck())) {
+      final View list = manager.controller().getMessagesView();
+      if (list != null) {
+        list.invalidate();
+      }
+    }
+  }
+
+  public final boolean needsStickyDrawAgain (int visibleTop, int visibleBottom) {
+    return stickyElements != null && stickyElements.needsDrawAgain(visibleTop, visibleBottom);
+  }
+
+  public final void drawStickyElements (
+    Canvas c,
+    float dx,
+    float dy,
+    int visibleTop,
+    int visibleBottom,
+    float alpha
+  ) {
+    if (stickyElements != null) {
+      stickyElements.draw(c, dx, dy, visibleTop, visibleBottom, alpha * stickyAlpha);
+    }
   }
 
   public int getContentX () {
@@ -8621,6 +8848,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
         case TdApi.MessageUpgradedGift.CONSTRUCTOR:
         case TdApi.MessageUpgradedGiftPurchaseOffer.CONSTRUCTOR:
         case TdApi.MessageUpgradedGiftPurchaseOfferRejected.CONSTRUCTOR:
+        case TdApi.MessageUpgradedGiftOnChainPurchaseOffer.CONSTRUCTOR:
         case TdApi.MessageRefundedUpgradedGift.CONSTRUCTOR:
         case TdApi.MessageStakeDice.CONSTRUCTOR:
 
@@ -8637,6 +8865,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
         case TdApi.MessageTonWalletTransfer.CONSTRUCTOR:
         case TdApi.MessageUnpaidMessagesAllowedByLink.CONSTRUCTOR:
         case TdApi.MessageWidget.CONSTRUCTOR:
+        case TdApi.MessageBotInvite.CONSTRUCTOR:
           break;
 
         case TdApi.MessageUnsupported.CONSTRUCTOR:
@@ -8649,7 +8878,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
           break;
         }
         default: {
-          Td.assertMessageContent_37851fea();
+          Td.assertMessageContent_e4738066();
           throw Td.unsupported(msg.content);
         }
       }

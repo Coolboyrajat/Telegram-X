@@ -32,7 +32,6 @@ import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.telegram.TdlibContext;
 import org.thunderdog.challegram.telegram.TdlibUi;
 import org.thunderdog.challegram.theme.ColorId;
-import org.thunderdog.challegram.theme.Theme;
 import org.thunderdog.challegram.tool.Intents;
 import org.thunderdog.challegram.tool.Strings;
 import org.thunderdog.challegram.tool.UI;
@@ -262,7 +261,9 @@ public class TextEntityMessage extends TextEntity {
         monospaceColorSet = new TextColorSetOverride(defaultColorSet) {
           @Override
           public int defaultTextColor () {
-            return syntaxColorId != 0 ? Theme.getColor(syntaxColorId) : super.defaultTextColor();
+            return syntaxColorId != 0 ?
+              colorTheme().getColor(syntaxColorId) :
+              super.defaultTextColor();
           }
 
           @Override
@@ -485,6 +486,11 @@ public class TextEntityMessage extends TextEntity {
   @Override
   public boolean isCodeBlock () {
     return codeEntity != null && quoteEntity == null;
+  }
+
+  @Override
+  public @Nullable TdApi.TextEntityType getCodeBlockType () {
+    return codeEntity != null ? codeEntity.type : null;
   }
 
   @Override
@@ -809,7 +815,12 @@ public class TextEntityMessage extends TextEntity {
             break;
           }
         }
-        UI.copyText(copyText, message);
+        UI.copyText(
+          Td.isMonospaceTextOrBlock(clickableEntity.type) ?
+            TD.toCopyText(copyText.toString(), clickableEntity.type) :
+            copyText,
+          message
+        );
       } else if (id == R.id.btn_shareLink) {
         if (shareState[0] == 0) {
           shareState[0] = 1;
